@@ -1,5 +1,5 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 Alex J <alexfx2058@gmail.com>
 */
 package main
 
