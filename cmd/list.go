@@ -30,33 +30,23 @@ func outboundTLS(outbound util.Outbound) string {
 	return "off"
 }
 
-func displayTag(tag string) string {
-	if tag == "" {
-		return "-"
-	}
-	return tag
-}
-
 // listCmd represents the list command
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List nodes from sing-box config.",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		data, err := os.ReadFile(listConfigPath)
 		if err != nil {
-			pterm.Error.Println("failed to read config:", err)
-			return
+			return commandError("failed to read config: %w", err)
 		}
 
 		var cfg util.SingboxConfig
 		if err := json.Unmarshal(data, &cfg); err != nil {
-			pterm.Error.Println("failed to parse config:", err)
-			return
+			return commandError("failed to parse config: %w", err)
 		}
 
 		if len(cfg.Outbounds) == 0 {
-			pterm.Warning.Println("no nodes found in config")
-			return
+			return commandError("no nodes found in config")
 		}
 
 		titleStyle := pterm.NewStyle(pterm.FgLightGreen, pterm.Bold)
@@ -78,7 +68,7 @@ var listCmd = &cobra.Command{
 		}
 
 		tableData := pterm.TableData{
-			{"id", "use", "type", "tag", "region", "latency", "status", "transport", "tls"},
+			{"id", "use", "type", "name", "region", "latency", "status", "transport", "tls"},
 		}
 
 		for i, outbound := range cfg.Outbounds {
@@ -100,7 +90,7 @@ var listCmd = &cobra.Command{
 				strconv.Itoa(i),
 				current,
 				outbound.Type,
-				displayTag(outbound.Tag),
+				util.NodeDisplayName(outbound, i),
 				region,
 				latency,
 				status,
@@ -114,9 +104,9 @@ var listCmd = &cobra.Command{
 			WithHeaderRowSeparator("-").
 			WithData(tableData).
 			Render(); err != nil {
-			pterm.Error.Println("failed to render node list:", err)
-			return
+			return commandError("failed to render node list: %w", err)
 		}
+		return nil
 	},
 }
 

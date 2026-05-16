@@ -4,16 +4,20 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "proxyctl",
-	Short: "proxyctl is a proxy subscription management tool.",
-	Long:  `This is a CLI tool for managing proxy subscriptions, node lists, node switching, and more.`,
+	Use:           "proxyctl",
+	Short:         "proxyctl is a proxy subscription management tool.",
+	Long:          `This is a CLI tool for managing proxy subscriptions, node lists, node switching, and more.`,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
@@ -26,6 +30,12 @@ func Execute() {
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func commandError(format string, args ...any) error {
+	err := fmt.Errorf(format, args...)
+	pterm.Error.Println(err)
+	return err
 }
 
 func init() {

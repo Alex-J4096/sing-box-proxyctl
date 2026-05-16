@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Alex-J4096/proxyctl/util"
 	"github.com/pterm/pterm"
@@ -16,6 +17,12 @@ import (
 )
 
 var updateOutputPath string
+var updateSettingsPath string
+var updateInboundMode string
+var updateListen string
+var updateSocksPort int
+var updateHTTPPort int
+var updateMixedPort int
 
 func decodeSubscription(body []byte) string {
 	raw := strings.TrimSpace(string(body))
@@ -52,32 +59,35 @@ var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Pull proxy subscription.",
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		subURL := args[0]
 
 		vmessCfgs := []util.VmessConfig{}
 		ssCfgs := []util.SsConfig{}
 
-		resp, err := http.Get(subURL)
+		client := http.Client{Timeout: 20 * time.Second}
+		resp, err := client.Get(subURL)
 		if err != nil {
-			pterm.Error.Println(err.Error())
-			return
+			return commandError("failed to fetch subscription: %w", err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			pterm.Error.Println(fmt.Sprintf("subscription request failed: HTTP %d", resp.StatusCode))
-			return
+			return commandError("subscription request failed: HTTP %d", resp.StatusCode)
 		}
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			pterm.Error.Println(err.Error())
-			return
+			return commandError("failed to read subscription response: %w", err)
+		}
+		if len(strings.TrimSpace(string(body))) == 0 {
+			return commandError("subscription response is empty")
 		}
 
 		decodedStr := decodeSubscription(body)
 		linkList := strings.Split(decodedStr, "\n")
+		unsupportedCount := 0
+		parseErrorCount := 0
 
 		for _, line := range linkList {
 			line = strings.TrimSpace(line)
@@ -89,6 +99,7 @@ var updateCmd = &cobra.Command{
 			if strings.HasPrefix(line, "vmess://") {
 				vmess, err := util.ParseVmessLink(line)
 				if err != nil {
+					parseErrorCount++
 					pterm.Warning.Println(fmt.Sprintf("skip invalid vmess node: %v", err))
 					continue
 				}
@@ -98,6 +109,7 @@ var updateCmd = &cobra.Command{
 			} else if strings.HasPrefix(line, "ss://") {
 				ss, err := util.ParseSSLink(line)
 				if err != nil {
+					parseErrorCount++
 					pterm.Warning.Println(fmt.Sprintf("skip invalid ss node: %v", err))
 					continue
 				}
@@ -105,17 +117,60 @@ var updateCmd = &cobra.Command{
 					ssCfgs = append(ssCfgs, *ss)
 				}
 			} else {
+				unsupportedCount++
 				pterm.Warning.Println("skip unsupported proxy type:", line)
 			}
 		}
 
-		// 默认使用第 0个节点
-		if err := util.GenerateConfig(vmessCfgs, ssCfgs, updateOutputPath, 0); err != nil {
-			pterm.Error.Println(err.Error())
-			return
+		if len(vmessCfgs)+len(ssCfgs) == 0 {
+			switch {
+			case parseErrorCount > 0:
+				return commandError("failed to parse subscription: %d invalid supported node(s), %d unsupported line(s)", parseErrorCount, unsupportedCount)
+			case unsupportedCount > 0:
+				return commandError("no supported proxy nodes found: %d unsupported line(s)", unsupportedCount)
+			default:
+				return commandError("no proxy nodes found in subscription")
+			}
+		}
+
+		settingsPath := updateSettingsPath
+		if settingsPath == "" {
+			settingsPath = util.DefaultSettingsPath(updateOutputPath)
+		}
+		settings, err := util.LoadProxyctlSettings(settingsPath)
+		if err != nil {
+			pterm.Warning.Println("failed to read settings, using defaults:", err)
+			settings = util.DefaultProxyctlSettings()
+		}
+
+		flags := cmd.Flags()
+		if flags.Changed("inbound") {
+			settings.Inbound.Mode = updateInboundMode
+		}
+		if flags.Changed("listen") {
+			settings.Inbound.Listen = updateListen
+		}
+		if flags.Changed("socks-port") {
+			settings.Inbound.SocksPort = updateSocksPort
+		}
+		if flags.Changed("http-port") {
+			settings.Inbound.HTTPPort = updateHTTPPort
+		}
+		if flags.Changed("mixed-port") {
+			settings.Inbound.MixedPort = updateMixedPort
+		}
+
+		configOptions := settings.GenerateConfigOptions(updateOutputPath, 0)
+		if err := util.GenerateConfigWithOptions(vmessCfgs, ssCfgs, configOptions); err != nil {
+			return commandError("failed to generate sing-box config: %w", err)
+		}
+		if err := util.SaveProxyctlSettings(settingsPath, settings); err != nil {
+			pterm.Warning.Println("failed to save settings:", err)
 		}
 
 		pterm.Success.Println(fmt.Sprintf("updated %d nodes and wrote sing-box config to %s", len(vmessCfgs)+len(ssCfgs), updateOutputPath))
+		pterm.Info.Println(fmt.Sprintf("inbound=%s settings=%s", settings.Inbound.Mode, settingsPath))
+		return nil
 	},
 }
 
@@ -131,4 +186,10 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	updateCmd.Flags().StringVarP(&updateOutputPath, "output", "o", "./config.json", "sing-box config output path")
+	updateCmd.Flags().StringVar(&updateSettingsPath, "settings", "", "proxyctl settings path")
+	updateCmd.Flags().StringVar(&updateInboundMode, "inbound", "socks", "inbound mode: socks, http, mixed, both")
+	updateCmd.Flags().StringVar(&updateListen, "listen", "127.0.0.1", "inbound listen address")
+	updateCmd.Flags().IntVar(&updateSocksPort, "socks-port", 1080, "SOCKS inbound listen port")
+	updateCmd.Flags().IntVar(&updateHTTPPort, "http-port", 8080, "HTTP inbound listen port")
+	updateCmd.Flags().IntVar(&updateMixedPort, "mixed-port", 2080, "mixed inbound listen port")
 }

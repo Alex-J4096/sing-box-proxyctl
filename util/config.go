@@ -57,6 +57,16 @@ type RouteConfig struct {
 	Final string `json:"final"` // 默认使用的 outbound tag
 }
 
+type GenerateConfigOptions struct {
+	OutPath      string
+	DefaultIndex int
+	InboundMode  string
+	Listen       string
+	SocksPort    int
+	HTTPPort     int
+	MixedPort    int
+}
+
 // 辅助函数，将 string 转 int，如果转换失败返回 0
 func mustAtoi(s string) int {
 	i, err := strconv.Atoi(s)
@@ -76,8 +86,92 @@ func nodeTag(prefix, name string, index int) string {
 	return fmt.Sprintf("%s-%d-%s", prefix, index, replacer.Replace(name))
 }
 
+func defaultGenerateConfigOptions(outPath string, defaultIndex int) GenerateConfigOptions {
+	return GenerateConfigOptions{
+		OutPath:      outPath,
+		DefaultIndex: defaultIndex,
+		InboundMode:  "socks",
+		Listen:       "127.0.0.1",
+		SocksPort:    1080,
+		HTTPPort:     8080,
+		MixedPort:    2080,
+	}
+}
+
+func DefaultGenerateConfigOptions(outPath string, defaultIndex int) GenerateConfigOptions {
+	return defaultGenerateConfigOptions(outPath, defaultIndex)
+}
+
+func normalizeConfigOptions(opts GenerateConfigOptions) GenerateConfigOptions {
+	defaults := defaultGenerateConfigOptions(opts.OutPath, opts.DefaultIndex)
+	if opts.InboundMode == "" {
+		opts.InboundMode = defaults.InboundMode
+	}
+	if opts.Listen == "" {
+		opts.Listen = defaults.Listen
+	}
+	if opts.SocksPort == 0 {
+		opts.SocksPort = defaults.SocksPort
+	}
+	if opts.HTTPPort == 0 {
+		opts.HTTPPort = defaults.HTTPPort
+	}
+	if opts.MixedPort == 0 {
+		opts.MixedPort = defaults.MixedPort
+	}
+	return opts
+}
+
+func buildInbounds(opts GenerateConfigOptions) ([]Inbound, error) {
+	switch strings.ToLower(opts.InboundMode) {
+	case "socks":
+		return []Inbound{{
+			Type:       "socks",
+			Tag:        "socks-in",
+			Listen:     opts.Listen,
+			ListenPort: opts.SocksPort,
+		}}, nil
+	case "http":
+		return []Inbound{{
+			Type:       "http",
+			Tag:        "http-in",
+			Listen:     opts.Listen,
+			ListenPort: opts.HTTPPort,
+		}}, nil
+	case "mixed":
+		return []Inbound{{
+			Type:       "mixed",
+			Tag:        "mixed-in",
+			Listen:     opts.Listen,
+			ListenPort: opts.MixedPort,
+		}}, nil
+	case "both":
+		return []Inbound{
+			{
+				Type:       "socks",
+				Tag:        "socks-in",
+				Listen:     opts.Listen,
+				ListenPort: opts.SocksPort,
+			},
+			{
+				Type:       "http",
+				Tag:        "http-in",
+				Listen:     opts.Listen,
+				ListenPort: opts.HTTPPort,
+			},
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported inbound mode %q, want socks, http, mixed, or both", opts.InboundMode)
+	}
+}
+
 // GenerateConfig 生成 sing-box 配置文件
 func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, defaultIndex int) error {
+	return GenerateConfigWithOptions(vmessCfgs, ssCfgs, defaultGenerateConfigOptions(outPath, defaultIndex))
+}
+
+func GenerateConfigWithOptions(vmessCfgs []VmessConfig, ssCfgs []SsConfig, opts GenerateConfigOptions) error {
+	opts = normalizeConfigOptions(opts)
 	outbounds := []Outbound{}
 
 	// VMess 节点转换
@@ -131,25 +225,23 @@ func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, 
 	}
 
 	// 检查 defaultIndex
-	if defaultIndex < 0 || defaultIndex >= len(outbounds) {
-		defaultIndex = 0
+	if opts.DefaultIndex < 0 || opts.DefaultIndex >= len(outbounds) {
+		opts.DefaultIndex = 0
+	}
+
+	inbounds, err := buildInbounds(opts)
+	if err != nil {
+		return err
 	}
 
 	cfg := SingboxConfig{
 		Log: LogConfig{
 			Level: "info",
 		},
-		Inbounds: []Inbound{
-			{
-				Type:       "socks",
-				Tag:        "socks-in",
-				Listen:     "127.0.0.1",
-				ListenPort: 1080,
-			},
-		},
+		Inbounds:  inbounds,
 		Outbounds: outbounds,
 		Route: RouteConfig{
-			Final: outbounds[defaultIndex].Tag,
+			Final: outbounds[opts.DefaultIndex].Tag,
 		},
 	}
 
@@ -159,13 +251,13 @@ func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, 
 		return fmt.Errorf("encode sing-box config: %w", err)
 	}
 
-	if dir := filepath.Dir(outPath); dir != "." {
+	if dir := filepath.Dir(opts.OutPath); dir != "." {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("create config dir: %w", err)
 		}
 	}
 
-	if err := os.WriteFile(outPath, data, 0644); err != nil {
+	if err := os.WriteFile(opts.OutPath, data, 0644); err != nil {
 		return fmt.Errorf("write sing-box config: %w", err)
 	}
 

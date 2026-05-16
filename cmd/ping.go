@@ -148,23 +148,20 @@ var pingCmd = &cobra.Command{
 	Use:   "ping [id]",
 	Short: "Ping nodes concurrently and save results.",
 	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := readSingboxConfig(pingConfigPath)
 		if err != nil {
-			pterm.Error.Println("failed to read config:", err)
-			return
+			return commandError("failed to read config: %w", err)
 		}
 		if len(cfg.Outbounds) == 0 {
-			pterm.Warning.Println("no nodes found in config")
-			return
+			return commandError("no nodes found in config")
 		}
 
 		jobs := []pingJob{}
 		if len(args) == 1 {
 			id, err := strconv.Atoi(args[0])
 			if err != nil || id < 0 || id >= len(cfg.Outbounds) {
-				pterm.Error.Println("invalid node id:", args[0])
-				return
+				return commandError("invalid node id: %s", args[0])
 			}
 			jobs = append(jobs, pingJob{Index: id, Outbound: cfg.Outbounds[id]})
 		} else {
@@ -224,7 +221,7 @@ var pingCmd = &cobra.Command{
 		}
 
 		tableData := pterm.TableData{
-			{"id", "status", "latency", "region", "tag"},
+			{"id", "status", "latency", "region", "name"},
 		}
 
 		for _, job := range jobs {
@@ -238,13 +235,12 @@ var pingCmd = &cobra.Command{
 				status,
 				util.FormatLatency(result),
 				util.FormatRegion(result.Region),
-				displayTag(result.Tag),
+				util.NodeDisplayName(job.Outbound, job.Index),
 			})
 		}
 
 		if err := util.SavePingCache(cachePath, cache); err != nil {
-			pterm.Error.Println("failed to save ping cache:", err)
-			return
+			return commandError("failed to save ping cache: %w", err)
 		}
 
 		if err := pterm.DefaultTable.
@@ -252,11 +248,11 @@ var pingCmd = &cobra.Command{
 			WithHeaderRowSeparator("-").
 			WithData(tableData).
 			Render(); err != nil {
-			pterm.Error.Println("failed to render ping results:", err)
-			return
+			return commandError("failed to render ping results: %w", err)
 		}
 
 		pterm.Success.Println("ping results saved to " + cachePath)
+		return nil
 	},
 }
 

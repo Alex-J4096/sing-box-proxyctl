@@ -3,6 +3,9 @@
 *_test.go
 /config.json
 /.proxyctl-ping.json
+/.proxyctl-settings.json
+/.proxyctl-sing-box.pid
+/.proxyctl-sing-box.log
 
 # 依赖管理
 /vendor/
