@@ -42,7 +42,7 @@ go run . node list -c ./config.json
 
 Columns:
 
-- `id`: node index, used by future `use <id>` and current `node ping <id>`
+- `id`: node index, used by `use <id>` and `node ping <id>`
 - `use`: `*` marks the current `route.final` node
 - `type`: outbound type, such as `vmess` or `shadowsocks`
 - `tag`: sing-box outbound tag
@@ -79,6 +79,18 @@ Ping results are saved to `.proxyctl-ping.json` by default, next to the config f
 
 Region lookup stores only the country name. If lookup fails, the region is `unknown`.
 
+### Node Use
+
+Switch the active node by updating `route.final` in the sing-box config.
+
+```bash
+go run . use <id>
+go run . use 0
+go run . use 0 -c ./config.json
+```
+
+The `id` is the 0-based node index shown by `node list`.
+
 ## Files
 
 - `config.json`: generated sing-box config
@@ -100,7 +112,6 @@ GOCACHE=/private/tmp/proxyctl-gocache go test ./...
 
 ## TODO
 
-- Implement `use <id>` to switch `route.final` to a selected node.
 - Add `node ping --sort` or list sorting by latency.
 - Add a persistent app config directory, for example `~/.config/proxyctl`.
 - Store subscription URL and support `sub update` without passing the URL every time.
