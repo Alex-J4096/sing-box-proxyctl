@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -33,41 +34,111 @@ type SsConfig struct {
 	PluginOpts string `json:"plugin-opts"` // 插件参数
 }
 
+func decodeBase64(raw string) ([]byte, error) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimRight(raw, "=")
+	if decoded, err := base64.RawURLEncoding.DecodeString(raw); err == nil {
+		return decoded, nil
+	}
+	if decoded, err := base64.RawStdEncoding.DecodeString(raw); err == nil {
+		return decoded, nil
+	}
+
+	padding := len(raw) % 4
+	if padding != 0 {
+		raw += strings.Repeat("=", 4-padding)
+	}
+	if decoded, err := base64.URLEncoding.DecodeString(raw); err == nil {
+		return decoded, nil
+	}
+	return base64.StdEncoding.DecodeString(raw)
+}
+
+func splitHostPort(serverPart string) (string, int, error) {
+	host, portStr, err := net.SplitHostPort(serverPart)
+	if err != nil {
+		colonIdx := strings.LastIndex(serverPart, ":")
+		if colonIdx == -1 {
+			return "", 0, fmt.Errorf("invalid server address, missing port")
+		}
+		host = serverPart[:colonIdx]
+		portStr = serverPart[colonIdx+1:]
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port: %w", err)
+	}
+	return strings.Trim(host, "[]"), port, nil
+}
+
 func ParseSSLink(link string) (*SsConfig, error) {
 	raw := strings.TrimPrefix(link, "ss://")
 
 	var name string
 	if idx := strings.Index(raw, "#"); idx != -1 {
 		name, _ = url.QueryUnescape(raw[idx+1:])
-		raw = raw[:idx] // 保留 base64 编码部分
+		raw = raw[:idx]
 	}
 
-	// 尝试 Base64 解码
-	decoded, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		decoded, err = base64.StdEncoding.DecodeString(raw)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode ss link: %w", err)
+	plugin := ""
+	pluginOpts := ""
+	if idx := strings.Index(raw, "?"); idx != -1 {
+		values, _ := url.ParseQuery(raw[idx+1:])
+		plugin = values.Get("plugin")
+		pluginOpts = values.Get("plugin-opts")
+		raw = raw[:idx]
+	}
+
+	// SIP002: ss://BASE64(method:password)@server:port
+	if atIdx := strings.LastIndex(raw, "@"); atIdx != -1 {
+		userInfo := raw[:atIdx]
+		serverPart := raw[atIdx+1:]
+
+		decodedUserInfo, err := decodeBase64(userInfo)
+		if err == nil {
+			userInfo = string(decodedUserInfo)
+		} else {
+			userInfo, _ = url.QueryUnescape(userInfo)
 		}
+
+		methodPass := strings.SplitN(userInfo, ":", 2)
+		if len(methodPass) != 2 {
+			return nil, fmt.Errorf("invalid ss link, missing method or password")
+		}
+
+		server, port, err := splitHostPort(serverPart)
+		if err != nil {
+			return nil, err
+		}
+
+		return &SsConfig{
+			Name:       name,
+			Server:     server,
+			Port:       port,
+			Method:     methodPass[0],
+			Password:   methodPass[1],
+			Plugin:     plugin,
+			PluginOpts: pluginOpts,
+		}, nil
+	}
+
+	// Legacy form: ss://BASE64(method:password@server:port)
+	decoded, err := decodeBase64(raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ss link: %w", err)
 	}
 
 	raw = string(decoded)
 
-	// 解析 METHOD:PASSWORD@SERVER:PORT
 	atIdx := strings.LastIndex(raw, "@")
 	if atIdx == -1 {
 		return nil, fmt.Errorf("invalid ss link, missing '@'")
 	}
-
 	userInfo := raw[:atIdx]
 	serverPart := raw[atIdx+1:]
 
-	colonIdx := strings.LastIndex(serverPart, ":")
-	if colonIdx == -1 {
-		return nil, fmt.Errorf("invalid ss link, missing port")
-	}
-
-	port, err := strconv.Atoi(serverPart[colonIdx+1:])
+	server, port, err := splitHostPort(serverPart)
 	if err != nil {
 		return nil, err
 	}
@@ -78,31 +149,22 @@ func ParseSSLink(link string) (*SsConfig, error) {
 	}
 
 	return &SsConfig{
-		Name:     name,
-		Server:   serverPart[:colonIdx],
-		Port:     port,
-		Method:   methodPass[0],
-		Password: methodPass[1],
+		Name:       name,
+		Server:     server,
+		Port:       port,
+		Method:     methodPass[0],
+		Password:   methodPass[1],
+		Plugin:     plugin,
+		PluginOpts: pluginOpts,
 	}, nil
 }
 
 func ParseVmessLink(link string) (*VmessConfig, error) {
 	raw := strings.TrimPrefix(link, "vmess://")
 
-	// 补全 Base64 填充
-	padding := len(raw) % 4
-	if padding != 0 {
-		raw += strings.Repeat("=", 4-padding)
-	}
-
-	// 尝试 RawURLEncoding
-	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	decoded, err := decodeBase64(raw)
 	if err != nil {
-		// 再尝试 StdEncoding
-		decoded, err = base64.StdEncoding.DecodeString(raw)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode vmess link: %w", err)
-		}
+		return nil, fmt.Errorf("failed to decode vmess link: %w", err)
 	}
 
 	// 解析 JSON

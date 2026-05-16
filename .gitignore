@@ -2,6 +2,7 @@
 
 *_test.go
 /config.json
+/.proxyctl-ping.json
 
 # 依赖管理
 /vendor/

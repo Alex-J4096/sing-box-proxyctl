@@ -3,9 +3,10 @@ package util
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // sing-box 配置
@@ -37,7 +38,13 @@ type Outbound struct {
 	AlterID    int              `json:"alter_id,omitempty"` // vmess
 	Method     string           `json:"method,omitempty"`   // ss
 	Password   string           `json:"password,omitempty"` // ss
+	TLS        *TLSConfig       `json:"tls,omitempty"`
 	Transport  *TransportConfig `json:"transport,omitempty"`
+}
+
+type TLSConfig struct {
+	Enabled    bool   `json:"enabled"`
+	ServerName string `json:"server_name,omitempty"`
 }
 
 type TransportConfig struct {
@@ -59,15 +66,25 @@ func mustAtoi(s string) int {
 	return i
 }
 
+func nodeTag(prefix, name string, index int) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Sprintf("%s-%d", prefix, index)
+	}
+
+	replacer := strings.NewReplacer(" ", "-", "/", "-", "\\", "-", ":", "-", "\t", "-")
+	return fmt.Sprintf("%s-%d-%s", prefix, index, replacer.Replace(name))
+}
+
 // GenerateConfig 生成 sing-box 配置文件
-func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, defaultIndex int) {
+func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, defaultIndex int) error {
 	outbounds := []Outbound{}
 
 	// VMess 节点转换
 	for i, v := range vmessCfgs {
 		ob := Outbound{
 			Type:       "vmess",
-			Tag:        fmt.Sprintf("vmess-%d", i+1),
+			Tag:        nodeTag("vmess", v.Ps, i+1),
 			Server:     v.Add,
 			ServerPort: mustAtoi(v.Port),
 			UUID:       v.ID,
@@ -83,6 +100,16 @@ func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, 
 				},
 			}
 		}
+		if strings.EqualFold(v.Tls, "tls") {
+			serverName := v.Host
+			if serverName == "" {
+				serverName = v.Add
+			}
+			ob.TLS = &TLSConfig{
+				Enabled:    true,
+				ServerName: serverName,
+			}
+		}
 		outbounds = append(outbounds, ob)
 	}
 
@@ -90,13 +117,17 @@ func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, 
 	for i, s := range ssCfgs {
 		ob := Outbound{
 			Type:       "shadowsocks",
-			Tag:        fmt.Sprintf("ss-%d", i+1),
+			Tag:        nodeTag("ss", s.Name, i+1),
 			Server:     s.Server,
 			ServerPort: s.Port,
 			Method:     s.Method,
 			Password:   s.Password,
 		}
 		outbounds = append(outbounds, ob)
+	}
+
+	if len(outbounds) == 0 {
+		return fmt.Errorf("no supported proxy nodes found")
 	}
 
 	// 检查 defaultIndex
@@ -125,13 +156,18 @@ func GenerateConfig(vmessCfgs []VmessConfig, ssCfgs []SsConfig, outPath string, 
 	// 序列化并写入文件
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		log.Fatal("JSON encoding failed:", err)
+		return fmt.Errorf("encode sing-box config: %w", err)
 	}
 
-	err = os.WriteFile(outPath, data, 0644)
-	if err != nil {
-		log.Fatal("failed to write config.json:", err)
+	if dir := filepath.Dir(outPath); dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("create config dir: %w", err)
+		}
 	}
 
-	fmt.Printf("sing-box configuration file generated: %s\n", outPath)
+	if err := os.WriteFile(outPath, data, 0644); err != nil {
+		return fmt.Errorf("write sing-box config: %w", err)
+	}
+
+	return nil
 }
