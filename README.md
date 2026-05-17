@@ -8,8 +8,7 @@
 
 ### What It Does
 
-- Pull a proxy subscription and generate a sing-box config.
-- Parse VMess and Shadowsocks nodes.
+- Pull a proxy subscription and generate a sing-box config. (Currently supports Vmess and Shadowsocks protocols.)
 - List nodes in a readable terminal table.
 - Ping nodes concurrently and cache latency/region results.
 - Switch the active node and restart sing-box automatically.
@@ -172,11 +171,10 @@ Commands print terminal errors and return a non-zero exit code when required ope
 
 它可以：
 
-- 拉取订阅并生成 sing-box 配置文件。
-- 解析 VMess 和 Shadowsocks 节点。
-- 用终端表格列出节点。
+- 拉取订阅并生成 sing-box 配置文件。（目前支持Vmess和Shadowsocks协议）
+- 用表格列出节点。
 - 并发测速，并缓存延迟和地区结果。
-- 切换当前使用的节点，并默认重启 sing-box。
+- 切换当前使用的节点，默认重启 sing-box。
 - 启动、停止、重启和查看 proxyctl 管理的 sing-box 后台进程。
 
 这个工具不会自动下载或安装 sing-box core。你需要自己安装 `sing-box`，或者把本地 core 放到：
