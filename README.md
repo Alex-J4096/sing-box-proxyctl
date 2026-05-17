@@ -22,11 +22,7 @@ This tool does not download or install sing-box core. Install sing-box yourself,
 
 ### Install
 
-Download a Linux release asset from GitHub Releases:
-
-- `proxyctl-linux-amd64.tar.gz`
-- `proxyctl-linux-arm64.tar.gz`
-
+Download a Linux release asset from GitHub Releases.
 Example:
 
 ```bash
