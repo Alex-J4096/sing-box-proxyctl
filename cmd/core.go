@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Alex-J4096/proxyctl/util"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -489,7 +490,7 @@ func init() {
 	coreCmd.AddCommand(corePsCmd)
 	coreCmd.AddCommand(coreRestartCmd)
 
-	coreCmd.PersistentFlags().StringVarP(&coreConfigPath, "config", "c", "./config.json", "sing-box config path")
+	coreCmd.PersistentFlags().StringVarP(&coreConfigPath, "config", "c", util.DefaultConfigPath(), "sing-box config path")
 	coreCmd.PersistentFlags().StringVar(&corePath, "core", "", "sing-box core path")
 	coreCmd.PersistentFlags().StringVar(&corePidFile, "pid-file", "", "managed sing-box pid file")
 	coreCmd.PersistentFlags().StringVar(&coreLogFile, "log-file", "", "managed sing-box log file")

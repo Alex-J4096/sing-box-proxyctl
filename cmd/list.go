@@ -121,6 +121,6 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	listCmd.Flags().StringVarP(&listConfigPath, "config", "c", "./config.json", "sing-box config path")
+	listCmd.Flags().StringVarP(&listConfigPath, "config", "c", util.DefaultConfigPath(), "sing-box config path")
 	listCmd.Flags().StringVar(&listPingCachePath, "ping-cache", "", "ping result cache path")
 }

@@ -88,7 +88,7 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	useCmd.Flags().StringVarP(&useConfigPath, "config", "c", "./config.json", "sing-box config path")
+	useCmd.Flags().StringVarP(&useConfigPath, "config", "c", util.DefaultConfigPath(), "sing-box config path")
 	useCmd.Flags().BoolVar(&useNoRestart, "no-restart", false, "only update config without restarting sing-box")
 	useCmd.Flags().StringVar(&useCorePath, "core", "", "sing-box core path used for restart")
 	useCmd.Flags().StringVar(&usePidFile, "pid-file", "", "managed sing-box pid file used for restart")

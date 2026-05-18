@@ -46,10 +46,22 @@ Generate a sing-box config from your subscription:
 proxyctl sub update '<subscription-url>'
 ```
 
+By default, the config is saved to:
+
+```bash
+~/.config/sing-box-proxyctl/config.json
+```
+
 Use a mixed inbound if you want both SOCKS and HTTP-style proxy environment variables to work through one port:
 
 ```bash
 proxyctl sub update '<subscription-url>' --inbound mixed --mixed-port 2080
+```
+
+After `sub update`, proxyctl prints shell `export` commands for the selected inbound. You can also query them later:
+
+```bash
+proxyctl env
 ```
 
 Start sing-box:
@@ -124,6 +136,7 @@ proxyctl use 0 --no-restart
 Core process:
 
 ```bash
+proxyctl env
 proxyctl core check
 proxyctl core status
 proxyctl core ps
@@ -144,7 +157,7 @@ proxyctl core start --pid-file ./proxyctl.pid --log-file ./proxyctl.log
 
 By default, files are created next to `config.json`:
 
-- `config.json`: generated sing-box config
+- `~/.config/sing-box-proxyctl/config.json`: generated sing-box config
 - `.proxyctl-settings.json`: persisted inbound settings
 - `.proxyctl-ping.json`: cached latency and region results
 - `.proxyctl-sing-box.pid`: managed sing-box pid file
@@ -209,10 +222,22 @@ proxyctl core check
 proxyctl sub update '<订阅地址>'
 ```
 
+默认配置文件会保存到：
+
+```bash
+~/.config/sing-box-proxyctl/config.json
+```
+
 如果希望命令行工具和脚本更容易走代理，推荐使用 mixed inbound：
 
 ```bash
 proxyctl sub update '<订阅地址>' --inbound mixed --mixed-port 2080
+```
+
+`sub update` 执行完成后会在终端输出当前 inbound 对应的 `export` 命令。后续也可以随时查询：
+
+```bash
+proxyctl env
 ```
 
 启动 sing-box：
@@ -287,6 +312,7 @@ proxyctl use 0 --no-restart
 sing-box 后台进程：
 
 ```bash
+proxyctl env
 proxyctl core check
 proxyctl core status
 proxyctl core ps
@@ -307,7 +333,7 @@ proxyctl core start --pid-file ./proxyctl.pid --log-file ./proxyctl.log
 
 默认情况下，以下文件会生成在 `config.json` 同级目录：
 
-- `config.json`：生成的 sing-box 配置
+- `~/.config/sing-box-proxyctl/config.json`：生成的 sing-box 配置
 - `.proxyctl-settings.json`：持久化的 inbound 设置
 - `.proxyctl-ping.json`：节点延迟和地区缓存
 - `.proxyctl-sing-box.pid`：proxyctl 管理的 sing-box pid 文件

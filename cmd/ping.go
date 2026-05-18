@@ -267,7 +267,7 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	pingCmd.Flags().StringVarP(&pingConfigPath, "config", "c", "./config.json", "sing-box config path")
+	pingCmd.Flags().StringVarP(&pingConfigPath, "config", "c", util.DefaultConfigPath(), "sing-box config path")
 	pingCmd.Flags().StringVar(&pingCachePath, "ping-cache", "", "ping result cache path")
 	pingCmd.Flags().DurationVarP(&pingTimeout, "timeout", "t", 3*time.Second, "TCP ping and region lookup timeout")
 	pingCmd.Flags().IntVarP(&pingConcurrency, "concurrency", "j", 8, "maximum concurrent ping workers")

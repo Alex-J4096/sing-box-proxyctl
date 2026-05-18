@@ -170,6 +170,7 @@ var updateCmd = &cobra.Command{
 
 		pterm.Success.Println(fmt.Sprintf("updated %d nodes and wrote sing-box config to %s", len(vmessCfgs)+len(ssCfgs), updateOutputPath))
 		pterm.Info.Println(fmt.Sprintf("inbound=%s settings=%s", settings.Inbound.Mode, settingsPath))
+		printProxyEnvHint(settings, settingsPath)
 		return nil
 	},
 }
@@ -185,7 +186,7 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	updateCmd.Flags().StringVarP(&updateOutputPath, "output", "o", "./config.json", "sing-box config output path")
+	updateCmd.Flags().StringVarP(&updateOutputPath, "output", "o", util.DefaultConfigPath(), "sing-box config output path")
 	updateCmd.Flags().StringVar(&updateSettingsPath, "settings", "", "proxyctl settings path")
 	updateCmd.Flags().StringVar(&updateInboundMode, "inbound", "socks", "inbound mode: socks, http, mixed, both")
 	updateCmd.Flags().StringVar(&updateListen, "listen", "127.0.0.1", "inbound listen address")
