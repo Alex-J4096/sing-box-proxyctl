@@ -22,3 +22,11 @@ func DefaultConfigDir() string {
 func DefaultConfigPath() string {
 	return filepath.Join(DefaultConfigDir(), "config.json")
 }
+
+func DefaultSubscriptionPath(configPath string) string {
+	dir := filepath.Dir(configPath)
+	if dir == "" {
+		dir = "."
+	}
+	return filepath.Join(dir, ".proxyctl-subscription")
+}

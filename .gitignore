@@ -1,6 +1,5 @@
 /doc/
 
-*_test.go
 /config.json
 /.proxyctl-ping.json
 /.proxyctl-settings.json

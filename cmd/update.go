@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +25,29 @@ var updateListen string
 var updateSocksPort int
 var updateHTTPPort int
 var updateMixedPort int
+var updateSubscriptionPath string
+
+func loadSubscriptionURL(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	url := strings.TrimSpace(string(data))
+	if url == "" {
+		return "", fmt.Errorf("subscription file is empty")
+	}
+	return url, nil
+}
+
+func saveSubscriptionURL(path, url string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(strings.TrimSpace(url)+"\n"), 0600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0600)
+}
 
 func decodeSubscription(body []byte) string {
 	raw := strings.TrimSpace(string(body))
@@ -58,9 +83,29 @@ func decodeSubscription(body []byte) string {
 var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Pull proxy subscription.",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		subURL := args[0]
+		subscriptionPath := updateSubscriptionPath
+		if subscriptionPath == "" {
+			subscriptionPath = util.DefaultSubscriptionPath(updateOutputPath)
+		}
+
+		var subURL string
+		if len(args) == 1 {
+			subURL = strings.TrimSpace(args[0])
+			if subURL == "" {
+				return commandError("subscription URL cannot be empty")
+			}
+		} else {
+			var err error
+			subURL, err = loadSubscriptionURL(subscriptionPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return commandError("no saved subscription; run proxyctl sub update <url> first")
+				}
+				return commandError("failed to read saved subscription: %w", err)
+			}
+		}
 
 		vmessCfgs := []util.VmessConfig{}
 		ssCfgs := []util.SsConfig{}
@@ -167,8 +212,14 @@ var updateCmd = &cobra.Command{
 		if err := util.SaveProxyctlSettings(settingsPath, settings); err != nil {
 			pterm.Warning.Println("failed to save settings:", err)
 		}
+		if len(args) == 1 {
+			if err := saveSubscriptionURL(subscriptionPath, subURL); err != nil {
+				return commandError("config was updated but subscription URL could not be saved: %w", err)
+			}
+		}
 
 		pterm.Success.Println(fmt.Sprintf("updated %d nodes and wrote sing-box config to %s", len(vmessCfgs)+len(ssCfgs), updateOutputPath))
+		pterm.Info.Println("subscription: " + subscriptionPath)
 		pterm.Info.Println(fmt.Sprintf("inbound=%s settings=%s", settings.Inbound.Mode, settingsPath))
 		printProxyEnvHint(settings, settingsPath)
 		return nil
@@ -193,4 +244,5 @@ func init() {
 	updateCmd.Flags().IntVar(&updateSocksPort, "socks-port", 1080, "SOCKS inbound listen port")
 	updateCmd.Flags().IntVar(&updateHTTPPort, "http-port", 8080, "HTTP inbound listen port")
 	updateCmd.Flags().IntVar(&updateMixedPort, "mixed-port", 2080, "mixed inbound listen port")
+	updateCmd.Flags().StringVar(&updateSubscriptionPath, "subscription-file", "", "saved subscription URL file")
 }

@@ -58,11 +58,19 @@ Use a mixed inbound if you want both SOCKS and HTTP-style proxy environment vari
 proxyctl sub update '<subscription-url>' --inbound mixed --mixed-port 2080
 ```
 
-After `sub update`, proxyctl prints shell `export` commands for the selected inbound. You can also query them later:
+The subscription URL is saved after the first successful update. Later updates need no URL:
 
 ```bash
-proxyctl env
+proxyctl sub update
 ```
+
+To keep terminal proxy variables synchronized with the managed sing-box process, add this line to `~/.zshrc` or `~/.bashrc`:
+
+```bash
+eval "$(proxyctl env --shell-init)"
+```
+
+The hook exports proxy variables while sing-box is running and unsets both upper- and lower-case proxy variables after it stops.
 
 Start sing-box:
 
@@ -94,6 +102,8 @@ proxyctl use 0
 
 ### Shell Proxy Environment
 
+Do not persist static `export` lines. `proxyctl env` emits status-aware shell commands, so it is also possible to synchronize once with `eval "$(proxyctl env)"`. The `--shell-init` hook above performs this automatically before each prompt.
+
 For `--inbound mixed --mixed-port 2080`:
 
 ```bash
@@ -116,7 +126,9 @@ Subscription:
 
 ```bash
 proxyctl sub update '<subscription-url>'
+proxyctl sub update
 proxyctl sub update '<subscription-url>' -o ./config.json
+proxyctl sub update '<subscription-url>' --subscription-file ./subscription
 proxyctl sub update '<subscription-url>' --inbound socks
 proxyctl sub update '<subscription-url>' --inbound http
 proxyctl sub update '<subscription-url>' --inbound mixed
@@ -159,6 +171,7 @@ By default, files are created next to `config.json`:
 
 - `~/.config/sing-box-proxyctl/config.json`: generated sing-box config
 - `.proxyctl-settings.json`: persisted inbound settings
+- `.proxyctl-subscription`: saved subscription URL (mode `0600`)
 - `.proxyctl-ping.json`: cached latency and region results
 - `.proxyctl-sing-box.pid`: managed sing-box pid file
 - `.proxyctl-sing-box.log`: managed sing-box log file
@@ -234,11 +247,19 @@ proxyctl sub update '<订阅地址>'
 proxyctl sub update '<订阅地址>' --inbound mixed --mixed-port 2080
 ```
 
-`sub update` 执行完成后会在终端输出当前 inbound 对应的 `export` 命令。后续也可以随时查询：
+第一次成功更新后，订阅地址会被保存。后续更新不需要再次输入地址：
 
 ```bash
-proxyctl env
+proxyctl sub update
 ```
+
+为了让终端代理环境变量跟随 sing-box 的起停自动变化，把下面一行加入 `~/.zshrc` 或 `~/.bashrc`：
+
+```bash
+eval "$(proxyctl env --shell-init)"
+```
+
+sing-box 运行时 hook 会设置代理变量；停止后会清除大小写两套代理变量。
 
 启动 sing-box：
 
@@ -270,6 +291,8 @@ proxyctl use 0
 
 ### 终端代理环境变量
 
+不要把固定的 `export` 语句写入 shell 配置。`proxyctl env` 会根据 sing-box 当前状态输出 `export` 或 `unset`；也可以用 `eval "$(proxyctl env)"` 手动同步一次。上面的 `--shell-init` hook 会在每次显示命令提示符前自动同步。
+
 如果使用 `--inbound mixed --mixed-port 2080`：
 
 ```bash
@@ -292,7 +315,9 @@ export HTTPS_PROXY=http://127.0.0.1:8080
 
 ```bash
 proxyctl sub update '<订阅地址>'
+proxyctl sub update
 proxyctl sub update '<订阅地址>' -o ./config.json
+proxyctl sub update '<订阅地址>' --subscription-file ./subscription
 proxyctl sub update '<订阅地址>' --inbound socks
 proxyctl sub update '<订阅地址>' --inbound http
 proxyctl sub update '<订阅地址>' --inbound mixed
@@ -335,6 +360,7 @@ proxyctl core start --pid-file ./proxyctl.pid --log-file ./proxyctl.log
 
 - `~/.config/sing-box-proxyctl/config.json`：生成的 sing-box 配置
 - `.proxyctl-settings.json`：持久化的 inbound 设置
+- `.proxyctl-subscription`：保存的订阅地址（权限为 `0600`）
 - `.proxyctl-ping.json`：节点延迟和地区缓存
 - `.proxyctl-sing-box.pid`：proxyctl 管理的 sing-box pid 文件
 - `.proxyctl-sing-box.log`：proxyctl 管理的 sing-box 日志文件
